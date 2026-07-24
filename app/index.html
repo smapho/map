@@ -82,12 +82,17 @@
     display: none;
     z-index: 25;
     transform: translateY(0);
-    transition: transform .25s ease;
+    transition: max-width .2s ease, max-height .2s ease;
   }
   #ad-card.hidden { display: none; }
+  #ad-card.expanded {
+    max-width: min(94vw, 720px);
+    max-height: 90vh;
+  }
+  #ad-card.expanded #ad-description { max-height: 320px; }
   .ad-card-header {
     position: relative;
-    padding-right: 110px;
+    padding-right: 165px;
     cursor: grab;
     touch-action: none;
   }
@@ -170,6 +175,12 @@
     font-size: 11px; font-weight: 600; cursor: pointer;
     padding: 4px 10px; border-radius: 999px;
   }
+  #ad-card .expand-btn {
+    position: absolute; top: 8px; right: 96px;
+    border: 1px solid #ddd; background: #f5f6f8; color: #444;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    padding: 4px 10px; border-radius: 999px;
+  }
 </style>
 </head>
 <body>
@@ -199,6 +210,7 @@
   </div>
   <button class="close-btn" id="ad-close">✕</button>
   <button class="collapse-btn" id="ad-collapse">たたむ ︿</button>
+  <button class="expand-btn" id="ad-expand">拡大 ⤢</button>
   <div class="ad-card-body">
     <div id="ad-video-wrap">
       <button id="unmute-btn">🔇 タップで音声ON</button>
@@ -461,7 +473,9 @@
     const card = document.getElementById("ad-card");
     card.classList.remove("hidden");
     card.classList.remove("collapsed");
+    card.classList.remove("expanded");
     document.getElementById("ad-collapse").textContent = "たたむ ︿";
+    document.getElementById("ad-expand").textContent = "拡大 ⤢";
     card.style.display = "block";
 
     if (Notification.permission === "granted") {
@@ -493,6 +507,17 @@
     const btn = document.getElementById("ad-collapse");
     const collapsed = card.classList.toggle("collapsed");
     btn.textContent = collapsed ? "広げる ﹀" : "たたむ ︿";
+  });
+
+  document.getElementById("ad-expand").addEventListener("click", () => {
+    const card = document.getElementById("ad-card");
+    const btn = document.getElementById("ad-expand");
+    const expanded = card.classList.toggle("expanded");
+    btn.textContent = expanded ? "縮小 ⤡" : "拡大 ⤢";
+    if (expanded && card.classList.contains("collapsed")) {
+      card.classList.remove("collapsed");
+      document.getElementById("ad-collapse").textContent = "たたむ ︿";
+    }
   });
 
   (function setupCardDrag() {
