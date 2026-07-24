@@ -3,6 +3,7 @@ import {
   getFirestore,
   collection,
   addDoc,
+  updateDoc,
   deleteDoc,
   doc,
   onSnapshot,
@@ -39,6 +40,7 @@ export const marksCollectionRef = collection(db, MARKS_COLLECTION);
 
 export {
   addDoc,
+  updateDoc,
   deleteDoc,
   doc,
   onSnapshot,

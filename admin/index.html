@@ -127,7 +127,7 @@
     margin-bottom: 10px;
     position: relative;
   }
-  .mark-card h3 { font-size: 13px; margin: 0 0 4px; padding-right: 50px; }
+  .mark-card h3 { font-size: 13px; margin: 0 0 4px; padding-right: 100px; }
   .mark-card p { font-size: 11px; margin: 2px 0; color: #555; word-break: break-all; }
   .mark-card img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; margin-top: 6px; }
   .del-btn {
@@ -143,6 +143,19 @@
     cursor: pointer;
   }
   .del-btn:hover { background: #fbd6d2; }
+  .edit-btn {
+    position: absolute;
+    top: 8px;
+    right: 58px;
+    background: #eef2ff;
+    color: #1a2740;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .edit-btn:hover { background: #dde5ff; }
 
   #modal-backdrop {
     display: none;
@@ -232,7 +245,7 @@
 
 <div id="modal-backdrop">
   <div id="modal">
-    <h2>広告マークを追加</h2>
+    <h2 id="modal-title">広告マークを追加</h2>
     <label>タイトル</label>
     <input id="m-title" placeholder="例）渋谷店キャンペーン" />
     <label>広告リンクURL</label>
@@ -257,6 +270,7 @@
   import {
     marksCollectionRef,
     addDoc,
+    updateDoc,
     deleteDoc,
     doc,
     onSnapshot,
@@ -272,6 +286,7 @@
 
   let map;
   let pendingLatLng = null;
+  let editingId = null;
   const overlaysById = new Map(); // id -> { marker, circle }
 
   window.__gmapsReady = function () {
@@ -294,14 +309,16 @@
   gmapsScript.async = true;
   document.head.appendChild(gmapsScript);
 
-  function openModal() {
-    document.getElementById("m-title").value = "";
-    document.getElementById("m-adurl").value = "";
-    document.getElementById("m-thumb").value = "";
-    document.getElementById("m-video").value = "";
-    document.getElementById("m-desc").value = "";
-    document.getElementById("m-desc-count").textContent = "0 / 500";
-    document.getElementById("m-radius").value = "100";
+  function openModal(existing) {
+    editingId = existing ? existing.id : null;
+    document.getElementById("modal-title").textContent = existing ? "広告マークを編集" : "広告マークを追加";
+    document.getElementById("m-title").value = existing ? existing.title : "";
+    document.getElementById("m-adurl").value = existing ? existing.adUrl : "";
+    document.getElementById("m-thumb").value = existing ? existing.thumbnailUrl || "" : "";
+    document.getElementById("m-video").value = existing ? existing.videoUrl || "" : "";
+    document.getElementById("m-desc").value = existing ? existing.description || "" : "";
+    document.getElementById("m-desc-count").textContent = `${(existing && existing.description || "").length} / 500`;
+    document.getElementById("m-radius").value = existing ? existing.radius : "100";
     document.getElementById("modal-backdrop").style.display = "flex";
   }
 
@@ -311,11 +328,12 @@
   function closeModal() {
     document.getElementById("modal-backdrop").style.display = "none";
     pendingLatLng = null;
+    editingId = null;
   }
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
 
   document.getElementById("modal-save").addEventListener("click", async () => {
-    if (!pendingLatLng) return;
+    if (!editingId && !pendingLatLng) return;
     const title = document.getElementById("m-title").value.trim();
     const adUrl = document.getElementById("m-adurl").value.trim();
     const thumbnailUrl = document.getElementById("m-thumb").value.trim();
@@ -328,18 +346,26 @@
       return;
     }
 
+    const payload = {
+      title,
+      adUrl,
+      thumbnailUrl: thumbnailUrl || "",
+      videoUrl: videoUrl || "",
+      description: description || "",
+      radius,
+    };
+
     try {
-      await addDoc(marksCollectionRef, {
-        title,
-        adUrl,
-        thumbnailUrl: thumbnailUrl || "",
-        videoUrl: videoUrl || "",
-        description: description || "",
-        lat: pendingLatLng.lat,
-        lng: pendingLatLng.lng,
-        radius,
-        createdAt: serverTimestamp(),
-      });
+      if (editingId) {
+        await updateDoc(doc(marksCollectionRef.firestore, "marks", editingId), payload);
+      } else {
+        await addDoc(marksCollectionRef, {
+          ...payload,
+          lat: pendingLatLng.lat,
+          lng: pendingLatLng.lng,
+          createdAt: serverTimestamp(),
+        });
+      }
       closeModal();
     } catch (e) {
       alert(describeFirestoreError(e));
@@ -410,6 +436,7 @@
       card.className = "mark-card";
       card.innerHTML = `
         <button class="del-btn" data-id="${id}">削除</button>
+        <button class="edit-btn" data-id="${id}">編集</button>
         <h3>${escapeHtml(data.title)}</h3>
         <p>座標: ${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}</p>
         <p>半径: ${data.radius}m</p>
@@ -419,6 +446,15 @@
         ${data.thumbnailUrl ? `<img src="${data.thumbnailUrl}" alt="" />` : ""}
       `;
       list.appendChild(card);
+    });
+
+    list.querySelectorAll(".edit-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const docSnap = snapshot.docs.find((d) => d.id === btn.dataset.id);
+        if (!docSnap) return;
+        pendingLatLng = { lat: docSnap.data().lat, lng: docSnap.data().lng };
+        openModal({ id: docSnap.id, ...docSnap.data() });
+      });
     });
 
     list.querySelectorAll(".del-btn").forEach((btn) => {
