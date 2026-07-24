@@ -14,7 +14,10 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
     background: #0f1522; color: #fff;
   }
-  #map { position: fixed; inset: 0; }
+  /* Google Mapsは初期化時にコンテナへ position:relative を強制的に上書きするため、
+     フルスクリーン配置は外側のラッパーで行い、#map自体は 100%/100% でサイズだけ追従させる。 */
+  #map-wrap { position: fixed; inset: 0; }
+  #map { width: 100%; height: 100%; }
 
   #status-bar {
     position: fixed;
@@ -82,7 +85,7 @@
     transition: transform .25s ease;
   }
   #ad-card.hidden { display: none; }
-  .ad-card-header { position: relative; padding-right: 60px; }
+  .ad-card-header { position: relative; padding-right: 110px; }
   #ad-card.collapsed .ad-card-body { display: none; }
   #ad-card.collapsed { padding-bottom: 14px; }
   #ad-card img#ad-thumb {
@@ -127,44 +130,47 @@
     background: #1a2740; color: #fff; text-decoration: none;
     font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 999px;
   }
-  #ad-description-wrap { position: relative; display: none; margin: 0 0 12px; }
+  #ad-description-wrap { position: relative; display: none; margin: 0 0 4px; }
   #ad-description {
     font-size: 15px;
     color: #222;
     line-height: 1.7;
-    max-height: 180px;
-    overflow-y: auto;
+    max-height: 120px;
+    overflow: hidden;
     white-space: pre-wrap;
     word-break: break-word;
   }
+  #ad-description.expanded { max-height: none; }
   #ad-description a { color: #4c7dff; }
   #ad-description-wrap.scrollable::after {
     content: "";
-    position: absolute; left: 0; right: 0; bottom: 0; height: 32px;
-    background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 80%);
+    position: absolute; left: 0; right: 0; bottom: 0; height: 36px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 85%);
     pointer-events: none;
   }
-  #scroll-hint {
+  #desc-toggle {
     display: none;
-    position: absolute; right: 2px; bottom: 2px;
-    font-size: 10px; color: #4c7dff; background: rgba(255,255,255,.95);
-    padding: 1px 6px; border-radius: 999px;
+    background: none; border: none;
+    color: #4c7dff; font-size: 13px; font-weight: 700;
+    padding: 2px 0 12px;
+    cursor: pointer;
   }
-  #ad-description-wrap.scrollable #scroll-hint { display: inline-block; }
+  #ad-description-wrap.scrollable + #desc-toggle { display: block; }
   #ad-card .close-btn {
     position: absolute; top: 8px; right: 10px; border: none; background: none;
     font-size: 16px; color: #999; cursor: pointer;
   }
   #ad-card .collapse-btn {
-    position: absolute; top: 8px; right: 36px; border: none; background: none;
-    font-size: 16px; color: #999; cursor: pointer; line-height: 1;
+    position: absolute; top: 8px; right: 36px;
+    border: 1px solid #ddd; background: #f5f6f8; color: #444;
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    padding: 4px 10px; border-radius: 999px;
   }
-  #ad-card.collapsed .collapse-btn { transform: rotate(180deg); }
 </style>
 </head>
 <body>
 
-<div id="map"></div>
+<div id="map-wrap"><div id="map"></div></div>
 
 <div id="status-bar">
   <span id="status-text"><span class="dot off" id="status-dot"></span>待機中</span>
@@ -183,7 +189,7 @@
 
 <div id="ad-card" class="hidden">
   <button class="close-btn" id="ad-close">✕</button>
-  <button class="collapse-btn" id="ad-collapse" title="たたむ">︿</button>
+  <button class="collapse-btn" id="ad-collapse">たたむ ︿</button>
   <div class="ad-card-header">
     <span class="badge">近くの広告</span>
     <h3 id="ad-title"></h3>
@@ -196,8 +202,8 @@
     <img id="ad-thumb" src="" alt="" />
     <div id="ad-description-wrap">
       <div id="ad-description"></div>
-      <span id="scroll-hint">▼ スクロール</span>
     </div>
+    <button id="desc-toggle">続きを読む ▼</button>
     <a id="ad-link" class="cta" href="#" target="_blank" rel="noopener">広告を見る</a>
   </div>
 </div>
@@ -439,6 +445,9 @@
     }
     const descEl = document.getElementById("ad-description");
     const descWrap = document.getElementById("ad-description-wrap");
+    const descToggle = document.getElementById("desc-toggle");
+    descEl.classList.remove("expanded");
+    descToggle.textContent = "続きを読む ▼";
     if (mark.description) {
       descEl.innerHTML = linkify(mark.description);
       descWrap.style.display = "block";
@@ -451,6 +460,7 @@
     const card = document.getElementById("ad-card");
     card.classList.remove("hidden");
     card.classList.remove("collapsed");
+    document.getElementById("ad-collapse").textContent = "たたむ ︿";
     card.style.display = "block";
 
     if (Notification.permission === "granted") {
@@ -479,8 +489,17 @@
 
   document.getElementById("ad-collapse").addEventListener("click", () => {
     const card = document.getElementById("ad-card");
+    const btn = document.getElementById("ad-collapse");
     const collapsed = card.classList.toggle("collapsed");
-    document.getElementById("ad-collapse").title = collapsed ? "広げる" : "たたむ";
+    btn.textContent = collapsed ? "広げる ﹀" : "たたむ ︿";
+  });
+
+  document.getElementById("desc-toggle").addEventListener("click", () => {
+    const descEl = document.getElementById("ad-description");
+    const descToggle = document.getElementById("desc-toggle");
+    const expanded = descEl.classList.toggle("expanded");
+    document.getElementById("ad-description-wrap").classList.toggle("scrollable", !expanded);
+    descToggle.textContent = expanded ? "閉じる ▲" : "続きを読む ▼";
   });
 
   document.getElementById("enable-btn").addEventListener("click", async () => {
