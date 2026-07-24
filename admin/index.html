@@ -472,7 +472,8 @@
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (e) {
-      errorEl.textContent = "ログインに失敗しました。メールアドレスとパスワードを確認してください。";
+      console.error("signIn error:", e.code, e.message);
+      errorEl.textContent = `ログインに失敗しました（${e.code || "unknown"}）。メールアドレスとパスワードを確認してください。`;
     }
   });
 
@@ -494,10 +495,11 @@
       await sendEmailVerification(cred.user);
       // onAuthStateChanged が verify-screen を自動表示する
     } catch (e) {
+      console.error("signUp error:", e.code, e.message);
       if (e.code === "auth/email-already-in-use") {
         errorEl.textContent = "このメールアドレスは既に登録されています。ログインしてください。";
       } else {
-        errorEl.textContent = "アカウント作成に失敗しました。入力内容を確認してください。";
+        errorEl.textContent = `アカウント作成に失敗しました（${e.code || "unknown"}）。入力内容を確認してください。`;
       }
     }
   });
@@ -519,7 +521,8 @@
       await sendPasswordResetEmail(auth, email);
       infoEl.textContent = "パスワード再設定用のメールを送信しました。メール内のリンクから新しいパスワードを設定してください。";
     } catch (e) {
-      errorEl.textContent = "送信に失敗しました。メールアドレスを確認してください。";
+      console.error("resetPassword error:", e.code, e.message);
+      errorEl.textContent = `送信に失敗しました（${e.code || "unknown"}）。メールアドレスを確認してください。`;
     }
   });
 
