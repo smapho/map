@@ -120,6 +120,18 @@
     background: #1a2740; color: #fff; text-decoration: none;
     font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 999px;
   }
+  #ad-description {
+    display: none;
+    font-size: 12px;
+    color: #333;
+    line-height: 1.6;
+    max-height: 140px;
+    overflow-y: auto;
+    margin: 0 0 10px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #ad-description a { color: #4c7dff; }
   #ad-card .close-btn {
     position: absolute; top: 8px; right: 10px; border: none; background: none;
     font-size: 16px; color: #999; cursor: pointer;
@@ -156,9 +168,10 @@
       <span class="badge">近くの広告</span>
       <h3 id="ad-title"></h3>
       <p id="ad-distance"></p>
-      <a id="ad-link" class="cta" href="#" target="_blank" rel="noopener">広告を見る</a>
     </div>
   </div>
+  <div id="ad-description"></div>
+  <a id="ad-link" class="cta" href="#" target="_blank" rel="noopener">広告を見る</a>
 </div>
 
 <script>
@@ -308,6 +321,19 @@
     }
   }
 
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function linkify(text) {
+    const escaped = escapeHtml(text);
+    return escaped
+      .replace(/(https?:\/\/[^\s<]+)/g, (url) => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`)
+      .replace(/\n/g, "<br>");
+  }
+
   function parseYouTubeId(url) {
     const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/);
     return m ? m[1] : null;
@@ -382,6 +408,13 @@
       thumb.style.display = "block";
     } else {
       thumb.style.display = "none";
+    }
+    const descEl = document.getElementById("ad-description");
+    if (mark.description) {
+      descEl.innerHTML = linkify(mark.description);
+      descEl.style.display = "block";
+    } else {
+      descEl.style.display = "none";
     }
     playVideoIfAny(mark);
     const card = document.getElementById("ad-card");

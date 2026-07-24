@@ -161,12 +161,14 @@
   }
   #modal h2 { font-size: 15px; margin: 0 0 12px; }
   #modal label { font-size: 12px; color: #444; display: block; margin-bottom: 4px; margin-top: 10px; }
-  #modal input {
+  #modal input, #modal textarea {
     width: 100%;
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 6px;
     font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
   }
   .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
   .modal-actions button {
@@ -239,6 +241,9 @@
     <input id="m-thumb" placeholder="https://example.com/thumb.jpg" />
     <label>動画URL（任意・到着時に自動再生 / YouTubeリンク or mp4直リンク）</label>
     <input id="m-video" placeholder="https://youtube.com/watch?v=... または .mp4" />
+    <label>説明文（任意・500文字まで。本文中のURLは自動でリンクになります）</label>
+    <textarea id="m-desc" maxlength="500" rows="5" placeholder="観光スポットの解説などを入力してください"></textarea>
+    <div id="m-desc-count" style="font-size:11px; color:#999; text-align:right; margin-top:2px;">0 / 500</div>
     <label>半径（メートル）</label>
     <input id="m-radius" type="number" value="100" min="10" step="10" />
     <div class="modal-actions">
@@ -294,9 +299,15 @@
     document.getElementById("m-adurl").value = "";
     document.getElementById("m-thumb").value = "";
     document.getElementById("m-video").value = "";
+    document.getElementById("m-desc").value = "";
+    document.getElementById("m-desc-count").textContent = "0 / 500";
     document.getElementById("m-radius").value = "100";
     document.getElementById("modal-backdrop").style.display = "flex";
   }
+
+  document.getElementById("m-desc").addEventListener("input", (e) => {
+    document.getElementById("m-desc-count").textContent = `${e.target.value.length} / 500`;
+  });
   function closeModal() {
     document.getElementById("modal-backdrop").style.display = "none";
     pendingLatLng = null;
@@ -309,6 +320,7 @@
     const adUrl = document.getElementById("m-adurl").value.trim();
     const thumbnailUrl = document.getElementById("m-thumb").value.trim();
     const videoUrl = document.getElementById("m-video").value.trim();
+    const description = document.getElementById("m-desc").value.trim().slice(0, 500);
     const radius = Number(document.getElementById("m-radius").value) || 100;
 
     if (!title || !adUrl) {
@@ -322,6 +334,7 @@
         adUrl,
         thumbnailUrl: thumbnailUrl || "",
         videoUrl: videoUrl || "",
+        description: description || "",
         lat: pendingLatLng.lat,
         lng: pendingLatLng.lng,
         radius,
@@ -402,6 +415,7 @@
         <p>半径: ${data.radius}m</p>
         <p>リンク: ${escapeHtml(data.adUrl)}</p>
         ${data.videoUrl ? `<p>動画: ${escapeHtml(data.videoUrl)}</p>` : ""}
+        ${data.description ? `<p>説明文: ${escapeHtml(data.description).slice(0, 60)}${data.description.length > 60 ? "…" : ""}</p>` : ""}
         ${data.thumbnailUrl ? `<img src="${data.thumbnailUrl}" alt="" />` : ""}
       `;
       list.appendChild(card);
