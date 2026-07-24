@@ -19,12 +19,12 @@ import {
 // 置き換えてください。ここは公開情報（APIキーではなくプロジェクト識別情報）のため
 // リポジトリに含めても問題ありませんが、書き込みは Firestore ルールと Auth で保護しています。
 export const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDxsNCxq_2CQFXm_3ZPwDrFwAMq8BJnpHM",
+  authDomain: "map1-99057.firebaseapp.com",
+  projectId: "map1-99057",
+  storageBucket: "map1-99057.firebasestorage.app",
+  messagingSenderId: "586857800277",
+  appId: "1:586857800277:web:8cd6508a48f61819802adc",
 };
 
 export const app = initializeApp(firebaseConfig);
