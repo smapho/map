@@ -1,11 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
+  function isAllowedAdmin() {
+    return request.auth != null
+      && request.auth.token.email_verified == true
+      && request.auth.token.email in [
+        "smapho1220@gmail.com"
+        // 管理者を増やす場合はここにメールアドレスを追加（カンマ区切り）
+      ];
+  }
+
   match /databases/{database}/documents {
     // マーク情報: 誰でも読めるが（スマホ用アプリが認証なしで参照するため）、
-    // 書き込み（追加・削除）は Firebase Authentication でログイン済みの管理者のみ許可。
+    // 書き込み（追加・削除）はメール認証済み・かつ許可リスト内のメールアドレスのみ許可。
+    // 管理画面はサインアップを誰でも実行できるが、許可リスト外のアカウントは
+    // Firestoreへの書き込みがこのルールで拒否される。
     match /marks/{markId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null;
+      allow create, update, delete: if isAllowedAdmin();
     }
   }
 }

@@ -61,6 +61,43 @@
     font-size: 14px;
   }
   #login-error { color: #c0392b; font-size: 12px; min-height: 16px; margin-top: 4px; }
+  #login-info { color: #1a7a3c; font-size: 12px; min-height: 16px; margin-top: 4px; }
+  #login-screen .secondary-btn {
+    background: #eef2ff;
+    color: #1a2740;
+    margin-top: 8px;
+  }
+  #login-screen .toggle-row {
+    text-align: center;
+    font-size: 12px;
+    color: #666;
+    margin-top: 14px;
+  }
+  #login-screen .toggle-row a { color: #4c7dff; cursor: pointer; text-decoration: underline; }
+
+  #verify-screen {
+    max-width: 360px;
+    margin: 80px auto;
+    background: #fff;
+    padding: 28px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    text-align: center;
+    display: none;
+  }
+  #verify-screen h2 { font-size: 16px; }
+  #verify-screen p { font-size: 13px; color: #555; line-height: 1.6; }
+  #verify-screen button {
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    margin: 6px 4px 0;
+  }
+  #verify-resend { background: #eef2ff; color: #1a2740; }
+  #verify-recheck { background: #1a2740; color: #fff; }
+  #verify-signout { background: #fdecea; color: #c0392b; }
 
   #app-screen { display: none; height: calc(100vh - 53px); }
   .layout { display: flex; height: 100%; }
@@ -152,11 +189,28 @@
 </header>
 
 <div id="login-screen">
-  <h2>管理者ログイン</h2>
+  <h2 id="login-title">管理者ログイン</h2>
   <input id="login-email" type="email" placeholder="メールアドレス" autocomplete="username" />
-  <input id="login-password" type="password" placeholder="パスワード" autocomplete="current-password" />
+  <input id="login-password" type="password" placeholder="パスワード（6文字以上）" autocomplete="current-password" />
   <button id="login-btn">ログイン</button>
+  <button id="signup-btn" class="secondary-btn" style="display:none;">アカウントを作成</button>
   <div id="login-error"></div>
+  <div id="login-info"></div>
+  <div class="toggle-row" id="toggle-row">
+    アカウントをお持ちでない方は <a id="show-signup">新規登録</a>
+  </div>
+</div>
+
+<div id="verify-screen">
+  <h2>メール認証が必要です</h2>
+  <p>
+    入力したメールアドレス宛に確認メールを送信しました。メール内のリンクをクリックしてから
+    「確認できたら再読み込み」を押してください。
+  </p>
+  <button id="verify-resend">確認メールを再送信</button>
+  <button id="verify-recheck">確認できたら再読み込み</button>
+  <button id="verify-signout">ログアウト</button>
+  <div id="verify-info" style="font-size:12px; color:#1a7a3c; margin-top:8px;"></div>
 </div>
 
 <div id="app-screen">
@@ -212,6 +266,8 @@
     serverTimestamp,
     auth,
     signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    sendEmailVerification,
     onAuthStateChanged,
     signOut,
   } from "../shared/firebase.js";
@@ -259,18 +315,21 @@
       return;
     }
 
-    await addDoc(marksCollectionRef, {
-      title,
-      adUrl,
-      thumbnailUrl: thumbnailUrl || "",
-      videoUrl: videoUrl || "",
-      lat: pendingLatLng.lat,
-      lng: pendingLatLng.lng,
-      radius,
-      createdAt: serverTimestamp(),
-    });
-
-    closeModal();
+    try {
+      await addDoc(marksCollectionRef, {
+        title,
+        adUrl,
+        thumbnailUrl: thumbnailUrl || "",
+        videoUrl: videoUrl || "",
+        lat: pendingLatLng.lat,
+        lng: pendingLatLng.lng,
+        radius,
+        createdAt: serverTimestamp(),
+      });
+      closeModal();
+    } catch (e) {
+      alert(describeFirestoreError(e));
+    }
   });
 
   function watchMarks() {
@@ -350,7 +409,11 @@
     list.querySelectorAll(".del-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         if (!confirm("このマークを削除しますか？")) return;
-        await deleteDoc(doc(marksCollectionRef.firestore, "marks", btn.dataset.id));
+        try {
+          await deleteDoc(doc(marksCollectionRef.firestore, "marks", btn.dataset.id));
+        } catch (e) {
+          alert(describeFirestoreError(e));
+        }
       });
     });
   }
@@ -362,9 +425,40 @@
   }
 
   // --- 認証 ---
+  let isSignupMode = false;
+
+  function setSignupMode(on) {
+    isSignupMode = on;
+    document.getElementById("login-title").textContent = on ? "新規アカウント作成" : "管理者ログイン";
+    document.getElementById("login-btn").style.display = on ? "none" : "block";
+    document.getElementById("signup-btn").style.display = on ? "block" : "none";
+    document.getElementById("toggle-row").innerHTML = on
+      ? 'すでにアカウントをお持ちの方は <a id="show-signup">ログイン</a>'
+      : 'アカウントをお持ちでない方は <a id="show-signup">新規登録</a>';
+    document.getElementById("show-signup").addEventListener("click", () => setSignupMode(!isSignupMode));
+    document.getElementById("login-error").textContent = "";
+    document.getElementById("login-info").textContent = "";
+  }
+  document.getElementById("show-signup").addEventListener("click", () => setSignupMode(true));
+
   onAuthStateChanged(auth, (user) => {
-    document.getElementById("login-screen").style.display = user ? "none" : "block";
-    document.getElementById("app-screen").style.display = user ? "block" : "none";
+    const loginScreen = document.getElementById("login-screen");
+    const verifyScreen = document.getElementById("verify-screen");
+    const appScreen = document.getElementById("app-screen");
+
+    if (!user) {
+      loginScreen.style.display = "block";
+      verifyScreen.style.display = "none";
+      appScreen.style.display = "none";
+    } else if (!user.emailVerified) {
+      loginScreen.style.display = "none";
+      verifyScreen.style.display = "block";
+      appScreen.style.display = "none";
+    } else {
+      loginScreen.style.display = "none";
+      verifyScreen.style.display = "none";
+      appScreen.style.display = "block";
+    }
     document.getElementById("signout-btn").style.display = user ? "inline-block" : "none";
   });
 
@@ -380,7 +474,71 @@
     }
   });
 
+  document.getElementById("signup-btn").addEventListener("click", async () => {
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const errorEl = document.getElementById("login-error");
+    const infoEl = document.getElementById("login-info");
+    errorEl.textContent = "";
+    infoEl.textContent = "";
+
+    if (!email || password.length < 6) {
+      errorEl.textContent = "メールアドレスと6文字以上のパスワードを入力してください。";
+      return;
+    }
+
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(cred.user);
+      // onAuthStateChanged が verify-screen を自動表示する
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") {
+        errorEl.textContent = "このメールアドレスは既に登録されています。ログインしてください。";
+      } else {
+        errorEl.textContent = "アカウント作成に失敗しました。入力内容を確認してください。";
+      }
+    }
+  });
+
   document.getElementById("signout-btn").addEventListener("click", () => signOut(auth));
+
+  document.getElementById("verify-resend").addEventListener("click", async () => {
+    const infoEl = document.getElementById("verify-info");
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+      infoEl.textContent = "確認メールを再送信しました。";
+    }
+  });
+
+  document.getElementById("verify-recheck").addEventListener("click", async () => {
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      // reload後は状態が変わらないと onAuthStateChanged が発火しないため手動で再評価
+      onAuthReevaluate();
+    }
+  });
+
+  function onAuthReevaluate() {
+    const user = auth.currentUser;
+    const loginScreen = document.getElementById("login-screen");
+    const verifyScreen = document.getElementById("verify-screen");
+    const appScreen = document.getElementById("app-screen");
+    if (user && user.emailVerified) {
+      verifyScreen.style.display = "none";
+      appScreen.style.display = "block";
+    } else {
+      document.getElementById("verify-info").textContent = "まだ認証が確認できません。メール内のリンクをクリックしてから再度お試しください。";
+    }
+  }
+
+  document.getElementById("verify-signout").addEventListener("click", () => signOut(auth));
+
+  function describeFirestoreError(e) {
+    if (e && e.code === "permission-denied") {
+      return "このアカウントには書き込み権限がありません（許可された管理者のメールアドレスのみ利用できます）。";
+    }
+    return "処理に失敗しました。時間をおいて再度お試しください。";
+  }
 </script>
 
 </body>
