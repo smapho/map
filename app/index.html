@@ -363,6 +363,7 @@
           strokeWeight: 2,
         },
         zIndex: 999,
+        clickable: false, // 現在地表示は演出のみ。重なったマーク円のクリックを奪わないようにする
       });
       accuracyCircle = new google.maps.Circle({
         map,
@@ -371,6 +372,7 @@
         strokeOpacity: 0,
         fillColor: "#ff5252",
         fillOpacity: 0.12,
+        clickable: false,
       });
       map.setCenter(pos);
     } else {
