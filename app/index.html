@@ -162,12 +162,6 @@
 </div>
 
 <script>
-  const GOOGLE_MAPS_API_KEY = "AIzaSyCOZc45VD2aZRu2mGXdcZ4C3M8CACz7Dz8";
-  const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&loading=async&callback=__gmapsReady`;
-  script.async = true;
-  document.head.appendChild(script);
-
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
@@ -193,6 +187,14 @@
     });
     watchMarks();
   };
+
+  // __gmapsReady を定義した後にスクリプトを読み込むことで、
+  // 「コールバック未定義のうちにMaps側が呼び出してしまう」競合を防ぐ。
+  const GOOGLE_MAPS_API_KEY = "AIzaSyCOZc45VD2aZRu2mGXdcZ4C3M8CACz7Dz8";
+  const gmapsScript = document.createElement("script");
+  gmapsScript.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&loading=async&callback=__gmapsReady`;
+  gmapsScript.async = true;
+  document.head.appendChild(gmapsScript);
 
   function watchMarks() {
     onSnapshot(marksCollectionRef, (snapshot) => {
