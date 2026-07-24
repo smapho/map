@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>近くの広告</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#1a2740" />
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
+    background: #0f1522; color: #fff;
+  }
+  #map { position: fixed; inset: 0; }
+
+  #status-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 10px 14px;
+    background: rgba(15,21,34,.85);
+    backdrop-filter: blur(4px);
+    font-size: 12px;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+  #status-text { opacity: .85; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4caf50; display: inline-block; margin-right: 6px;
+    box-shadow: 0 0 0 rgba(76,175,80,.6);
+    animation: pulse 2s infinite;
+  }
+  .dot.off { background: #888; animation: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76,175,80,.6); }
+    70% { box-shadow: 0 0 0 8px rgba(76,175,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(76,175,80,0); }
+  }
+
+  #permission-screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; z-index: 30;
+    background: #0f1522;
+  }
+  #permission-screen h1 { font-size: 18px; margin-bottom: 8px; }
+  #permission-screen p { font-size: 13px; color: #aab2c5; line-height: 1.6; max-width: 320px; }
+  #enable-btn {
+    margin-top: 20px;
+    padding: 14px 28px;
+    background: #4c7dff;
+    border: none;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #permission-error { color: #ff8a80; font-size: 12px; margin-top: 12px; min-height: 16px; }
+
+  #ad-card {
+    position: fixed;
+    left: 12px; right: 12px; bottom: 12px;
+    background: #fff;
+    color: #1a1a1a;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+    display: none;
+    z-index: 25;
+    transform: translateY(0);
+    transition: transform .25s ease;
+  }
+  #ad-card.hidden { display: none; }
+  #ad-card .row { display: flex; gap: 12px; }
+  #ad-card img {
+    width: 84px; height: 84px; object-fit: cover; border-radius: 10px; flex-shrink: 0;
+    background: #eee;
+  }
+  #ad-video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    display: none;
+  }
+  #ad-video-wrap video, #ad-video-wrap iframe {
+    width: 100%; height: 100%; border: none; display: block;
+  }
+  #unmute-btn {
+    position: absolute;
+    right: 8px; bottom: 8px;
+    background: rgba(0,0,0,.6);
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    display: none;
+  }
+  #ad-card .content { flex: 1; min-width: 0; }
+  #ad-card .badge {
+    display: inline-block; font-size: 10px; color: #4c7dff; background: #eef2ff;
+    padding: 2px 8px; border-radius: 999px; margin-bottom: 4px; font-weight: 600;
+  }
+  #ad-card h3 { font-size: 14px; margin: 0 0 4px; }
+  #ad-card p { font-size: 11px; color: #666; margin: 0 0 8px; }
+  #ad-card a.cta {
+    display: inline-block;
+    background: #1a2740; color: #fff; text-decoration: none;
+    font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 999px;
+  }
+  #ad-card .close-btn {
+    position: absolute; top: 8px; right: 10px; border: none; background: none;
+    font-size: 16px; color: #999; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="status-bar">
+  <span id="status-text"><span class="dot off" id="status-dot"></span>待機中</span>
+  <span id="mark-count"></span>
+</div>
+
+<div id="permission-screen">
+  <h1>近くの広告アプリ</h1>
+  <p>
+    このアプリを起動したままにすると、登録済みの地点（半径100m）に近づいたとき
+    自動的に広告リンクが表示されます。位置情報の利用を許可してください。
+  </p>
+  <button id="enable-btn">位置情報を許可して開始</button>
+  <div id="permission-error"></div>
+</div>
+
+<div id="ad-card" class="hidden">
+  <button class="close-btn" id="ad-close">✕</button>
+  <div id="ad-video-wrap">
+    <button id="unmute-btn">🔇 タップで音声ON</button>
+  </div>
+  <div class="row">
+    <img id="ad-thumb" src="" alt="" />
+    <div class="content">
+      <span class="badge">近くの広告</span>
+      <h3 id="ad-title"></h3>
+      <p id="ad-distance"></p>
+      <a id="ad-link" class="cta" href="#" target="_blank" rel="noopener">広告を見る</a>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&loading=async&callback=__gmapsReady`;
+  script.async = true;
+  document.head.appendChild(script);
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  }
+</script>
+
+<script type="module">
+  import { marksCollectionRef, onSnapshot } from "../shared/firebase.js";
+  import { distanceMeters } from "../shared/geo.js";
+
+  const HYSTERESIS_RATIO = 1.2; // 半径の1.2倍を超えて離れたら再トリガー可能にする
+  let map, userMarker, accuracyCircle;
+  let marks = [];
+  const overlaysById = new Map(); // markId -> { marker, circle }
+  const triggeredIds = new Set();
+  let currentShownId = null;
+
+  window.__gmapsReady = function () {
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 35.681236, lng: 139.767125 },
+      zoom: 15,
+      disableDefaultUI: true,
+      zoomControl: true,
+    });
+    watchMarks();
+  };
+
+  function watchMarks() {
+    onSnapshot(marksCollectionRef, (snapshot) => {
+      marks = [];
+      const seenIds = new Set();
+      snapshot.forEach((docSnap) => {
+        const id = docSnap.id;
+        const data = docSnap.data();
+        marks.push({ id, ...data });
+        seenIds.add(id);
+        upsertMarkOverlay(id, data);
+      });
+      for (const id of Array.from(overlaysById.keys())) {
+        if (!seenIds.has(id)) {
+          const entry = overlaysById.get(id);
+          entry.marker.setMap(null);
+          entry.circle.setMap(null);
+          overlaysById.delete(id);
+        }
+      }
+      document.getElementById("mark-count").textContent = `登録地点: ${marks.length}件`;
+    });
+  }
+
+  function upsertMarkOverlay(id, data) {
+    let entry = overlaysById.get(id);
+    if (!entry) {
+      const marker = new google.maps.Marker({
+        position: { lat: data.lat, lng: data.lng },
+        map,
+        title: data.title,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 6,
+          fillColor: "#4c7dff",
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 2,
+        },
+      });
+      const circle = new google.maps.Circle({
+        map,
+        center: { lat: data.lat, lng: data.lng },
+        radius: data.radius,
+        strokeColor: "#4c7dff",
+        strokeOpacity: 0.7,
+        strokeWeight: 1,
+        fillColor: "#4c7dff",
+        fillOpacity: 0.1,
+      });
+      overlaysById.set(id, { marker, circle });
+    } else {
+      entry.marker.setPosition({ lat: data.lat, lng: data.lng });
+      entry.circle.setCenter({ lat: data.lat, lng: data.lng });
+      entry.circle.setRadius(data.radius);
+    }
+  }
+
+  function updateUserPosition(lat, lng, accuracy) {
+    const pos = { lat, lng };
+    if (!userMarker) {
+      userMarker = new google.maps.Marker({
+        position: pos,
+        map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: "#ff5252",
+          fillOpacity: 1,
+          strokeColor: "#fff",
+          strokeWeight: 2,
+        },
+        zIndex: 999,
+      });
+      accuracyCircle = new google.maps.Circle({
+        map,
+        center: pos,
+        radius: accuracy || 20,
+        strokeOpacity: 0,
+        fillColor: "#ff5252",
+        fillOpacity: 0.12,
+      });
+      map.setCenter(pos);
+    } else {
+      userMarker.setPosition(pos);
+      accuracyCircle.setCenter(pos);
+      accuracyCircle.setRadius(accuracy || 20);
+    }
+  }
+
+  function checkGeofences(lat, lng) {
+    let nearest = null;
+    for (const mark of marks) {
+      const dist = distanceMeters(lat, lng, mark.lat, mark.lng);
+      if (!nearest || dist < nearest.dist) nearest = { mark, dist };
+
+      const inside = dist <= mark.radius;
+      const farOutside = dist > mark.radius * HYSTERESIS_RATIO;
+
+      if (inside && !triggeredIds.has(mark.id)) {
+        triggeredIds.add(mark.id);
+        showAd(mark, dist);
+      } else if (farOutside && triggeredIds.has(mark.id)) {
+        triggeredIds.delete(mark.id);
+      }
+    }
+
+    if (nearest) {
+      document.getElementById("status-text").innerHTML =
+        `<span class="dot" id="status-dot"></span>最寄地点まで ${Math.round(nearest.dist)}m`;
+    }
+  }
+
+  function parseYouTubeId(url) {
+    const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function isDirectVideoFile(url) {
+    return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url);
+  }
+
+  function stopVideo() {
+    const wrap = document.getElementById("ad-video-wrap");
+    wrap.innerHTML = '<button id="unmute-btn">🔇 タップで音声ON</button>';
+    wrap.style.display = "none";
+    document.getElementById("unmute-btn").style.display = "none";
+  }
+
+  function playVideoIfAny(mark) {
+    const wrap = document.getElementById("ad-video-wrap");
+    if (!mark.videoUrl) {
+      wrap.style.display = "none";
+      return;
+    }
+    const youtubeId = parseYouTubeId(mark.videoUrl);
+    wrap.style.display = "block";
+
+    if (youtubeId) {
+      // YouTube 埋め込み: ミュート自動再生。音量操作はプレイヤー内のコントロールで行う。
+      const iframe = document.createElement("iframe");
+      iframe.src = `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0`;
+      iframe.allow = "autoplay; encrypted-media; picture-in-picture";
+      iframe.allowFullscreen = true;
+      wrap.innerHTML = "";
+      wrap.appendChild(iframe);
+    } else if (isDirectVideoFile(mark.videoUrl)) {
+      const video = document.createElement("video");
+      video.src = mark.videoUrl;
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.controls = false;
+      if (mark.thumbnailUrl) video.poster = mark.thumbnailUrl;
+      wrap.innerHTML = "";
+      wrap.appendChild(video);
+
+      const unmuteBtn = document.createElement("button");
+      unmuteBtn.id = "unmute-btn";
+      unmuteBtn.textContent = "🔇 タップで音声ON";
+      unmuteBtn.style.display = "block";
+      unmuteBtn.addEventListener("click", () => {
+        video.muted = false;
+        unmuteBtn.style.display = "none";
+      });
+      wrap.appendChild(unmuteBtn);
+
+      video.play().catch(() => {
+        // 自動再生がブロックされた場合はミュート状態のまま再試行を促す
+      });
+    } else {
+      // 動画URLだが形式不明な場合は何も再生せず、通常のリンク表示のみ行う
+      wrap.style.display = "none";
+    }
+  }
+
+  function showAd(mark, dist) {
+    currentShownId = mark.id;
+    document.getElementById("ad-title").textContent = mark.title;
+    document.getElementById("ad-distance").textContent = `現在地から約${Math.round(dist)}m`;
+    document.getElementById("ad-link").href = mark.adUrl;
+    const thumb = document.getElementById("ad-thumb");
+    if (mark.thumbnailUrl) {
+      thumb.src = mark.thumbnailUrl;
+      thumb.style.display = "block";
+    } else {
+      thumb.style.display = "none";
+    }
+    playVideoIfAny(mark);
+    const card = document.getElementById("ad-card");
+    card.classList.remove("hidden");
+    card.style.display = "block";
+
+    if (Notification.permission === "granted") {
+      try {
+        const n = new Notification(`近くの広告: ${mark.title}`, {
+          body: "タップして広告を見る",
+          tag: mark.id,
+        });
+        n.onclick = () => {
+          window.focus();
+          window.open(mark.adUrl, "_blank");
+        };
+      } catch (e) {
+        // 一部モバイルブラウザは直接 Notification コンストラクタ非対応
+      }
+    }
+  }
+
+  document.getElementById("ad-close").addEventListener("click", () => {
+    const card = document.getElementById("ad-card");
+    card.classList.add("hidden");
+    card.style.display = "none";
+    currentShownId = null;
+    stopVideo();
+  });
+
+  document.getElementById("enable-btn").addEventListener("click", async () => {
+    const errorEl = document.getElementById("permission-error");
+    errorEl.textContent = "";
+
+    if (!("geolocation" in navigator)) {
+      errorEl.textContent = "この端末は位置情報に対応していません。";
+      return;
+    }
+
+    if ("Notification" in window && Notification.permission === "default") {
+      try { await Notification.requestPermission(); } catch (e) {}
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        document.getElementById("permission-screen").style.display = "none";
+        startWatching();
+      },
+      (err) => {
+        errorEl.textContent = "位置情報の許可が必要です。ブラウザの設定を確認してください。";
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  });
+
+  function startWatching() {
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        updateUserPosition(latitude, longitude, accuracy);
+        checkGeofences(latitude, longitude);
+      },
+      (err) => {
+        document.getElementById("status-text").textContent = "位置情報の取得に失敗しました";
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  }
+</script>
+
+</body>
+</html>

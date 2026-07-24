@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // マーク情報: 誰でも読めるが（スマホ用アプリが認証なしで参照するため）、
+    // 書き込み（追加・削除）は Firebase Authentication でログイン済みの管理者のみ許可。
+    match /marks/{markId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+  }
+}

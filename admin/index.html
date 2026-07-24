@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>広告マーク管理（PC用）</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
+    background: #f5f6f8;
+    color: #1a1a1a;
+  }
+  header {
+    background: #1a2740;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  #signout-btn {
+    background: transparent;
+    color: #cdd6e5;
+    border: 1px solid #45526b;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #signout-btn:hover { background: #263355; }
+
+  #login-screen {
+    max-width: 360px;
+    margin: 80px auto;
+    background: #fff;
+    padding: 28px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+  }
+  #login-screen h2 { margin-top: 0; font-size: 16px; }
+  #login-screen input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  #login-screen button {
+    width: 100%;
+    padding: 10px;
+    background: #1a2740;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  #login-error { color: #c0392b; font-size: 12px; min-height: 16px; margin-top: 4px; }
+
+  #app-screen { display: none; height: calc(100vh - 53px); }
+  .layout { display: flex; height: 100%; }
+  #map { flex: 1; height: 100%; }
+  #sidebar {
+    width: 340px;
+    background: #fff;
+    border-left: 1px solid #e2e4e8;
+    overflow-y: auto;
+    padding: 16px;
+  }
+  #sidebar h2 { font-size: 14px; margin: 0 0 8px; color: #444; }
+  .hint {
+    font-size: 12px;
+    color: #666;
+    background: #eef2ff;
+    border: 1px solid #d7deff;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .mark-card {
+    border: 1px solid #e2e4e8;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .mark-card h3 { font-size: 13px; margin: 0 0 4px; padding-right: 50px; }
+  .mark-card p { font-size: 11px; margin: 2px 0; color: #555; word-break: break-all; }
+  .mark-card img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; margin-top: 6px; }
+  .del-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #fdecea;
+    color: #c0392b;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .del-btn:hover { background: #fbd6d2; }
+
+  #modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  #modal {
+    background: #fff;
+    width: 340px;
+    border-radius: 10px;
+    padding: 20px;
+  }
+  #modal h2 { font-size: 15px; margin: 0 0 12px; }
+  #modal label { font-size: 12px; color: #444; display: block; margin-bottom: 4px; margin-top: 10px; }
+  #modal input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .modal-actions button {
+    flex: 1;
+    padding: 9px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #modal-save { background: #1a2740; color: #fff; }
+  #modal-cancel { background: #eee; color: #333; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>広告マーク管理（PC用）</h1>
+  <button id="signout-btn" style="display:none;">ログアウト</button>
+</header>
+
+<div id="login-screen">
+  <h2>管理者ログイン</h2>
+  <input id="login-email" type="email" placeholder="メールアドレス" autocomplete="username" />
+  <input id="login-password" type="password" placeholder="パスワード" autocomplete="current-password" />
+  <button id="login-btn">ログイン</button>
+  <div id="login-error"></div>
+</div>
+
+<div id="app-screen">
+  <div class="layout">
+    <div id="map"></div>
+    <div id="sidebar">
+      <h2>登録済みマーク</h2>
+      <div class="hint">
+        地図をクリックすると、その地点に広告マークを追加できます（初期半径 100m）。
+        スマホ用アプリはこの一覧をリアルタイムに参照します。
+      </div>
+      <div id="mark-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-backdrop">
+  <div id="modal">
+    <h2>広告マークを追加</h2>
+    <label>タイトル</label>
+    <input id="m-title" placeholder="例）渋谷店キャンペーン" />
+    <label>広告リンクURL</label>
+    <input id="m-adurl" placeholder="https://example.com/ad" />
+    <label>サムネイル画像URL（任意）</label>
+    <input id="m-thumb" placeholder="https://example.com/thumb.jpg" />
+    <label>動画URL（任意・到着時に自動再生 / YouTubeリンク or mp4直リンク）</label>
+    <input id="m-video" placeholder="https://youtube.com/watch?v=... または .mp4" />
+    <label>半径（メートル）</label>
+    <input id="m-radius" type="number" value="100" min="10" step="10" />
+    <div class="modal-actions">
+      <button id="modal-cancel">キャンセル</button>
+      <button id="modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Google Maps JS API のキーに置き換えてください（Google Cloud Console > 認証情報）
+  const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&loading=async&callback=__gmapsReady`;
+  script.async = true;
+  document.head.appendChild(script);
+</script>
+
+<script type="module">
+  import {
+    marksCollectionRef,
+    addDoc,
+    deleteDoc,
+    doc,
+    onSnapshot,
+    serverTimestamp,
+    auth,
+    signInWithEmailAndPassword,
+    onAuthStateChanged,
+    signOut,
+  } from "../shared/firebase.js";
+
+  let map;
+  let pendingLatLng = null;
+  const overlaysById = new Map(); // id -> { marker, circle }
+
+  window.__gmapsReady = function () {
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 35.681236, lng: 139.767125 }, // 東京駅（初期表示位置）
+      zoom: 14,
+    });
+    map.addListener("click", (e) => {
+      pendingLatLng = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      openModal();
+    });
+    watchMarks();
+  };
+
+  function openModal() {
+    document.getElementById("m-title").value = "";
+    document.getElementById("m-adurl").value = "";
+    document.getElementById("m-thumb").value = "";
+    document.getElementById("m-video").value = "";
+    document.getElementById("m-radius").value = "100";
+    document.getElementById("modal-backdrop").style.display = "flex";
+  }
+  function closeModal() {
+    document.getElementById("modal-backdrop").style.display = "none";
+    pendingLatLng = null;
+  }
+  document.getElementById("modal-cancel").addEventListener("click", closeModal);
+
+  document.getElementById("modal-save").addEventListener("click", async () => {
+    if (!pendingLatLng) return;
+    const title = document.getElementById("m-title").value.trim();
+    const adUrl = document.getElementById("m-adurl").value.trim();
+    const thumbnailUrl = document.getElementById("m-thumb").value.trim();
+    const videoUrl = document.getElementById("m-video").value.trim();
+    const radius = Number(document.getElementById("m-radius").value) || 100;
+
+    if (!title || !adUrl) {
+      alert("タイトルと広告リンクURLは必須です。");
+      return;
+    }
+
+    await addDoc(marksCollectionRef, {
+      title,
+      adUrl,
+      thumbnailUrl: thumbnailUrl || "",
+      videoUrl: videoUrl || "",
+      lat: pendingLatLng.lat,
+      lng: pendingLatLng.lng,
+      radius,
+      createdAt: serverTimestamp(),
+    });
+
+    closeModal();
+  });
+
+  function watchMarks() {
+    onSnapshot(marksCollectionRef, (snapshot) => {
+      const seenIds = new Set();
+      snapshot.forEach((docSnap) => {
+        const id = docSnap.id;
+        const data = docSnap.data();
+        seenIds.add(id);
+        upsertOverlay(id, data);
+      });
+      // 削除されたものをクリーンアップ
+      for (const id of Array.from(overlaysById.keys())) {
+        if (!seenIds.has(id)) {
+          removeOverlay(id);
+        }
+      }
+      renderList(snapshot);
+    });
+  }
+
+  function upsertOverlay(id, data) {
+    let entry = overlaysById.get(id);
+    if (!entry) {
+      const marker = new google.maps.Marker({
+        position: { lat: data.lat, lng: data.lng },
+        map,
+        title: data.title,
+      });
+      const circle = new google.maps.Circle({
+        map,
+        center: { lat: data.lat, lng: data.lng },
+        radius: data.radius,
+        strokeColor: "#1a2740",
+        strokeOpacity: 0.6,
+        strokeWeight: 1,
+        fillColor: "#1a2740",
+        fillOpacity: 0.12,
+      });
+      entry = { marker, circle };
+      overlaysById.set(id, entry);
+    } else {
+      entry.marker.setPosition({ lat: data.lat, lng: data.lng });
+      entry.circle.setCenter({ lat: data.lat, lng: data.lng });
+      entry.circle.setRadius(data.radius);
+    }
+  }
+
+  function removeOverlay(id) {
+    const entry = overlaysById.get(id);
+    if (!entry) return;
+    entry.marker.setMap(null);
+    entry.circle.setMap(null);
+    overlaysById.delete(id);
+  }
+
+  function renderList(snapshot) {
+    const list = document.getElementById("mark-list");
+    list.innerHTML = "";
+    snapshot.forEach((docSnap) => {
+      const id = docSnap.id;
+      const data = docSnap.data();
+      const card = document.createElement("div");
+      card.className = "mark-card";
+      card.innerHTML = `
+        <button class="del-btn" data-id="${id}">削除</button>
+        <h3>${escapeHtml(data.title)}</h3>
+        <p>座標: ${data.lat.toFixed(5)}, ${data.lng.toFixed(5)}</p>
+        <p>半径: ${data.radius}m</p>
+        <p>リンク: ${escapeHtml(data.adUrl)}</p>
+        ${data.videoUrl ? `<p>動画: ${escapeHtml(data.videoUrl)}</p>` : ""}
+        ${data.thumbnailUrl ? `<img src="${data.thumbnailUrl}" alt="" />` : ""}
+      `;
+      list.appendChild(card);
+    });
+
+    list.querySelectorAll(".del-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("このマークを削除しますか？")) return;
+        await deleteDoc(doc(marksCollectionRef.firestore, "marks", btn.dataset.id));
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  // --- 認証 ---
+  onAuthStateChanged(auth, (user) => {
+    document.getElementById("login-screen").style.display = user ? "none" : "block";
+    document.getElementById("app-screen").style.display = user ? "block" : "none";
+    document.getElementById("signout-btn").style.display = user ? "inline-block" : "none";
+  });
+
+  document.getElementById("login-btn").addEventListener("click", async () => {
+    const email = document.getElementById("login-email").value.trim();
+    const password = document.getElementById("login-password").value;
+    const errorEl = document.getElementById("login-error");
+    errorEl.textContent = "";
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      errorEl.textContent = "ログインに失敗しました。メールアドレスとパスワードを確認してください。";
+    }
+  });
+
+  document.getElementById("signout-btn").addEventListener("click", () => signOut(auth));
+</script>
+
+</body>
+</html>
