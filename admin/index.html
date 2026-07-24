@@ -199,6 +199,7 @@
   <div class="toggle-row" id="toggle-row">
     アカウントをお持ちでない方は <a id="show-signup">新規登録</a>
   </div>
+  <div class="toggle-row"><a id="forgot-password">パスワードを忘れた場合</a></div>
 </div>
 
 <div id="verify-screen">
@@ -268,6 +269,7 @@
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     sendEmailVerification,
+    sendPasswordResetEmail,
     onAuthStateChanged,
     signOut,
   } from "../shared/firebase.js";
@@ -501,6 +503,25 @@
   });
 
   document.getElementById("signout-btn").addEventListener("click", () => signOut(auth));
+
+  document.getElementById("forgot-password").addEventListener("click", async () => {
+    const email = document.getElementById("login-email").value.trim();
+    const errorEl = document.getElementById("login-error");
+    const infoEl = document.getElementById("login-info");
+    errorEl.textContent = "";
+    infoEl.textContent = "";
+
+    if (!email) {
+      errorEl.textContent = "メールアドレス欄に、パスワードをリセットしたいアカウントのメールアドレスを入力してください。";
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      infoEl.textContent = "パスワード再設定用のメールを送信しました。メール内のリンクから新しいパスワードを設定してください。";
+    } catch (e) {
+      errorEl.textContent = "送信に失敗しました。メールアドレスを確認してください。";
+    }
+  });
 
   document.getElementById("verify-resend").addEventListener("click", async () => {
     const infoEl = document.getElementById("verify-info");
