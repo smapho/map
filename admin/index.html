@@ -536,6 +536,9 @@
   document.getElementById("verify-recheck").addEventListener("click", async () => {
     if (auth.currentUser) {
       await auth.currentUser.reload();
+      // reload() はローカルのユーザー情報のみ更新するため、Firestoreルールが参照する
+      // IDトークンのclaims（email_verified）を反映させるには強制的にトークンを再取得する必要がある
+      await auth.currentUser.getIdToken(true);
       // reload後は状態が変わらないと onAuthStateChanged が発火しないため手動で再評価
       onAuthReevaluate();
     }
