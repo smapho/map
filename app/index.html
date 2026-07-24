@@ -85,7 +85,13 @@
     transition: transform .25s ease;
   }
   #ad-card.hidden { display: none; }
-  .ad-card-header { position: relative; padding-right: 110px; }
+  .ad-card-header {
+    position: relative;
+    padding-right: 110px;
+    cursor: grab;
+    touch-action: none;
+  }
+  .ad-card-header.dragging { cursor: grabbing; }
   #ad-card.collapsed .ad-card-body { display: none; }
   #ad-card.collapsed { padding-bottom: 14px; }
   #ad-card img#ad-thumb {
@@ -188,13 +194,13 @@
 </div>
 
 <div id="ad-card" class="hidden">
-  <button class="close-btn" id="ad-close">✕</button>
-  <button class="collapse-btn" id="ad-collapse">たたむ ︿</button>
-  <div class="ad-card-header">
+  <div class="ad-card-header" id="ad-drag-handle">
     <span class="badge">近くの広告</span>
     <h3 id="ad-title"></h3>
     <p id="ad-distance"></p>
   </div>
+  <button class="close-btn" id="ad-close">✕</button>
+  <button class="collapse-btn" id="ad-collapse">たたむ ︿</button>
   <div class="ad-card-body">
     <div id="ad-video-wrap">
       <button id="unmute-btn">🔇 タップで音声ON</button>
@@ -493,6 +499,48 @@
     const collapsed = card.classList.toggle("collapsed");
     btn.textContent = collapsed ? "広げる ﹀" : "たたむ ︿";
   });
+
+  (function setupCardDrag() {
+    const card = document.getElementById("ad-card");
+    const handle = document.getElementById("ad-drag-handle");
+    let dragging = false;
+    let startX, startY, startLeft, startTop;
+
+    handle.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      handle.classList.add("dragging");
+      handle.setPointerCapture(e.pointerId);
+      const rect = card.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = rect.left;
+      startTop = rect.top;
+      // 自由な位置へドラッグできるよう、初期の left/right/bottom/margin アンカーを解除する
+      card.style.left = `${rect.left}px`;
+      card.style.top = `${rect.top}px`;
+      card.style.right = "auto";
+      card.style.bottom = "auto";
+      card.style.margin = "0";
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const rect = card.getBoundingClientRect();
+      const maxLeft = Math.max(0, window.innerWidth - rect.width);
+      const maxTop = Math.max(0, window.innerHeight - rect.height);
+      card.style.left = `${Math.min(Math.max(0, startLeft + dx), maxLeft)}px`;
+      card.style.top = `${Math.min(Math.max(0, startTop + dy), maxTop)}px`;
+    });
+
+    function endDrag() {
+      dragging = false;
+      handle.classList.remove("dragging");
+    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  })();
 
   document.getElementById("desc-toggle").addEventListener("click", () => {
     const descEl = document.getElementById("ad-description");
