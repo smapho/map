@@ -338,11 +338,10 @@
         strokeWeight: 2,
         fillColor: "#4c7dff",
         fillOpacity: 0.22,
+        clickable: false, // タップイベントを自分で奪ってしまい、mapのclickへ伝播しなくなるため
       });
       marker.addListener("click", () => previewMark(id));
-      circle.addListener("click", () => previewMark(id));
       marker.addListener("mouseover", () => previewMark(id));
-      circle.addListener("mouseover", () => previewMark(id));
       overlaysById.set(id, { marker, circle });
     } else {
       entry.marker.setPosition({ lat: data.lat, lng: data.lng });
