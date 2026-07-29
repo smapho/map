@@ -270,17 +270,32 @@
     // Circleは実機タッチだと当たり判定が反応しないことがあるため、
     // 地図全体のクリック位置と各地点の距離を測って範囲内なら反応させる。
     map.addListener("click", (e) => {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      for (const mark of marks) {
-        if (distanceMeters(lat, lng, mark.lat, mark.lng) <= mark.radius) {
+      const mark = findMarkAt(e.latLng.lat(), e.latLng.lng());
+      if (mark) previewMark(mark.id);
+    });
+    // PCでのマウスオーバーも、円の内側全体で反応するようにする
+    // （マーカーのmouseoverだと点そのものにしか反応しないため）。
+    let hoveredMarkId = null;
+    map.addListener("mousemove", (e) => {
+      const mark = findMarkAt(e.latLng.lat(), e.latLng.lng());
+      if (mark) {
+        if (hoveredMarkId !== mark.id) {
+          hoveredMarkId = mark.id;
           previewMark(mark.id);
-          break;
         }
+      } else {
+        hoveredMarkId = null;
       }
     });
     watchMarks();
   };
+
+  function findMarkAt(lat, lng) {
+    for (const mark of marks) {
+      if (distanceMeters(lat, lng, mark.lat, mark.lng) <= mark.radius) return mark;
+    }
+    return null;
+  }
 
   // __gmapsReady を定義した後にスクリプトを読み込むことで、
   // 「コールバック未定義のうちにMaps側が呼び出してしまう」競合を防ぐ。
